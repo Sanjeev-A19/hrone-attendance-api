@@ -1,7 +1,11 @@
 # DECISIONS.md
 
-1. **Indexes.** Unique `emp_code` on employees and unique `(emp_code, date)` on logs guarantee no duplicates. `(date desc, emp_code)` serves the list sort, month ranges and the leaderboard. `(status, date, emp_code)` serves the status filter. `(emp_code, punch_in)` finds the record to punch out. Employees also get `(department, emp_code)` and `(department, joined_on)`. I rejected a single-field `status` index: too unselective to help.
-2. **Punch-in race.** Both requests skip any read-then-write and just call `insert_one`. The unique `(emp_code, date)` index lets MongoDB accept exactly one. The other gets `DuplicateKeyError`, which I turn into 409.
-3. **Ties.** The leaderboard ranks with `$rank`, so tied employees share a rank and `limit` is applied afterwards on `rank <= limit`. A tie at the cutoff returns every tied employee, so there can be more rows than `limit`.
-4. **Headcount.** The summary starts from `employees` (joined on or before month end), not from the logs. `$lookup` brings each person's logs and `$unwind` keeps people with none. Headcount is the number of distinct employees in each department group.
-5. **100x data.** Pre-aggregate monthly numbers per employee into a summary collection when records are written, so analytics read thousands of small documents. Then shard logs by `emp_code`.
+1. **Indexes.** Unique `emp_code` on employees and unique `(emp_code, date)` on logs, so duplicates are impossible at the database level. `(date desc, emp_code)` matches the list sort exactly and also serves month ranges and the leaderboard. `(status, date, emp_code)` is for the status filter, and `(emp_code, punch_in)` finds the record to punch out. Two department indexes on employees feed the analytics. I rejected a plain `status` index because it matches too many rows to help.
+
+2. **Punch-in race.** I don't check first. Both requests call `insert_one`, and the unique `(emp_code, date)` index lets only one of them in. The other gets `DuplicateKeyError`, which I return as 409.
+
+3. **Ties.** I rank with `$rank`, so tied people share a rank, and only then keep rows with rank at most `limit`. If three people tie at the cutoff, all three come back, so the list can be longer than `limit`.
+
+4. **Headcount.** The summary starts from `employees`, not from the logs, and `$unwind` keeps people who have no logs. They still count towards the department's headcount.
+
+5. **100x the data.** I would pre-compute monthly totals per employee when records are written, so analytics read small summary documents. Then I would shard the logs by `emp_code`.
