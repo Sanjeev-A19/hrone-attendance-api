@@ -18,3 +18,4 @@ All endpoints in `openapi.yaml` are implemented, including the explain endpoint.
 * `moving_avg_7d` averages the already-rounded (4 decimal) `attendance_rate` values, as the contract words it.
 * Ranges of exactly 92 days are accepted; 93 or more give 422.
 * A request to PATCH that changes none of `status`, `punch_in`, `punch_out` is 422.
+* Records dated before an employee's joined_on are still counted in that month's totals.
